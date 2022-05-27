@@ -23,11 +23,20 @@
 #include "msc.h"
 #include "hal/usb_hal.h"
 #include "soc/usb_periph.h"
-#include "esp32s2/rom/gpio.h"
 #include "driver/gpio.h"
 #include "sdkconfig.h"
 #include "esp_idf_version.h"
 #include "esp_system.h"
+
+#if CONFIG_IDF_TARGET_ESP32
+#include "esp32/rom/gpio.h"
+#elif CONFIG_IDF_TARGET_ESP32S2
+#include "esp32s2/rom/gpio.h"
+#elif CONFIG_IDF_TARGET_ESP32S3
+#include "esp32s3/rom/gpio.h"
+#else
+#error Target CONFIG_IDF_TARGET is not supported
+#endif
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 0)
 #include "esp_mac.h"
