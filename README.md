@@ -1,4 +1,6 @@
-# ESP USB Bridge
+# Bridge-USB
+
+目前测试下来，串口中继功能可用，但是uf2功能还不能使用
 
 ```
 I (367) bridge_jtag: JTAG GPIO init done
