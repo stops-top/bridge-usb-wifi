@@ -81,8 +81,22 @@ static uint8_t s_tdo_bytes[1024];
 static uint16_t s_total_tdo_bits = 0;
 static uint16_t s_usb_sent_bits = 0;
 static esp_chip_model_t s_target_model;
-static TaskHandle_t s_task_handle = NULL;
+static TaskHandle_t s_jtag_task_handle = NULL;
+static TaskHandle_t s_usb_rx_task_handle = NULL;
+static TaskHandle_t s_usb_tx_task_handle = NULL;
 static gpio_dev_t *const s_gpio_dev = GPIO_HAL_GET_HW(GPIO_PORT_0);
+
+void tud_vendor_rx_cb(uint8_t itf)
+{
+    (void)itf;
+    xTaskNotifyGive(s_usb_rx_task_handle);
+}
+
+void tud_mount_cb(void)
+{
+    ESP_LOGI(TAG, "Mounted");
+    xTaskNotifyGive(s_usb_tx_task_handle);
+}
 
 bool tud_vendor_control_xfer_cb(const uint8_t rhport, const uint8_t stage, tusb_control_request_t const *request)
 {
@@ -141,7 +155,8 @@ static void usb_reader_task(void *pvParameters)
 {
     uint8_t buf[CFG_TUD_VENDOR_RX_BUFSIZE];
     for (;;) {
-        if (tud_vendor_n_available(0)) {
+        /* When data are available the tud_vendor_rx_cb will notify this task. */
+        if (ulTaskNotifyTake(pdTRUE, portMAX_DELAY)) {
             uint32_t r;
             while ((r = tud_vendor_n_read(0, buf, sizeof(buf))) > 0) {
                 if (xRingbufferSend(usb_rcvbuf, buf, r, pdMS_TO_TICKS(1000)) != pdTRUE) {
@@ -151,13 +166,12 @@ static void usb_reader_task(void *pvParameters)
                 }
             }
 
-            if (xRingbufferGetCurFreeSize(usb_rcvbuf) < 0.8 * USB_RCVBUF_SIZE) {
+            if (xRingbufferGetCurFreeSize(usb_rcvbuf) < (USB_RCVBUF_SIZE * 8) / 10) {
                 ESP_LOGW(TAG, "Ringbuffer is getting full!");
                 vTaskDelay(pdMS_TO_TICKS(1000));
             }
+            taskYIELD();
         }
-        // Even vTaskDelay(1) would give poor performance with 99% IDLE task.
-        taskYIELD();
     }
     vTaskDelete(NULL);
 }
@@ -165,13 +179,13 @@ static void usb_reader_task(void *pvParameters)
 static void usb_send_task(void *pvParameters)
 {
     uint8_t local_buf[CFG_TUD_VENDOR_TX_BUFSIZE];
-    for (;;) {
-        if (!tud_vendor_n_mounted(0)) {
-            ESP_LOGD(TAG, "USB connection is not available!");
-            vTaskDelay(pdMS_TO_TICKS(1000));
-            continue;
-        }
 
+    /* When the device is mounted the tud_mount_cb will notify this task. */
+    ESP_LOGD(TAG, "Waiting for the device to be mounted...");
+    (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    ESP_LOGD(TAG, "Device mounted!");
+
+    for (;;) {
         size_t n = 0;
         uint8_t *buf = (uint8_t *) xRingbufferReceiveUpTo(usb_sndbuf, &n, portMAX_DELAY, sizeof(local_buf));
         memcpy(local_buf, buf, n);
@@ -183,7 +197,7 @@ static void usb_send_task(void *pvParameters)
                 // registers then the USB buffer will fill up very quickly. It is everything fine until there is space
                 // in the usb_sndbuf ringbuffer.
                 const size_t ring_free = xRingbufferGetCurFreeSize(usb_sndbuf);
-                if (ring_free < 0.3 * USB_SNDBUF_SIZE) {
+                if (ring_free < (USB_SNDBUF_SIZE * 3) / 10) {
                     ESP_LOGW(TAG, "USB send buffer is full, usb_sndbuf ringbuffer is getting full "
                              "(has %d free bytes of %d)", ring_free, USB_SNDBUF_SIZE);
                 }
@@ -219,8 +233,8 @@ inline static void do_jtag_one(const uint8_t tdo_req, const uint8_t tms, const u
     gpio_ll_set_level(s_gpio_dev, GPIO_TCK, 1);
 
     if (tdo_req) {
+        s_tdo_bytes[s_total_tdo_bits / 8] |= (gpio_ll_get_level(s_gpio_dev, GPIO_TDO) << (s_total_tdo_bits % 8));
         s_total_tdo_bits++;
-        s_tdo_bytes[(s_total_tdo_bits - 1) / 8] |= (gpio_ll_get_level(s_gpio_dev, GPIO_TDO) << ((s_total_tdo_bits - 1) % 8));
     }
 
     gpio_ll_set_level(s_gpio_dev, GPIO_TCK, 0);
@@ -239,21 +253,21 @@ int jtag_get_target_model(void)
 
 void jtag_task_suspend(void)
 {
-    if (s_task_handle) {
-        vTaskSuspend(s_task_handle);
+    if (s_jtag_task_handle) {
+        vTaskSuspend(s_jtag_task_handle);
     }
 }
 
 void jtag_task_resume(void)
 {
-    if (s_task_handle) {
-        vTaskResume(s_task_handle);
+    if (s_jtag_task_handle) {
+        vTaskResume(s_jtag_task_handle);
     }
 }
 
 void jtag_task(void *pvParameters)
 {
-    s_task_handle = xTaskGetCurrentTaskHandle();
+    s_jtag_task_handle = xTaskGetCurrentTaskHandle();
     init_jtag_gpio();
 
     usb_rcvbuf = xRingbufferCreate(USB_RCVBUF_SIZE, RINGBUF_TYPE_BYTEBUF);
@@ -261,8 +275,8 @@ void jtag_task(void *pvParameters)
         ESP_LOGE(TAG, "Cannot allocate USB receive buffer!");
         eub_abort();
     }
-
-    if (xTaskCreate(usb_reader_task, "usb_reader_task", 4 * 1024, NULL, uxTaskPriorityGet(NULL) - 1, NULL) != pdPASS) {
+    if (xTaskCreate(usb_reader_task, "usb_reader_task", 4 * 1024, NULL,
+                    uxTaskPriorityGet(NULL) - 1, &s_usb_rx_task_handle) != pdPASS) {
         ESP_LOGE(TAG, "Cannot create USB reader task!");
         eub_abort();
     }
@@ -273,7 +287,8 @@ void jtag_task(void *pvParameters)
         eub_abort();
     }
 
-    if (xTaskCreate(usb_send_task, "usb_send_task", 4 * 1024, NULL, uxTaskPriorityGet(NULL) + 1, NULL) != pdPASS) {
+    if (xTaskCreate(usb_send_task, "usb_send_task", 4 * 1024, NULL,
+                    uxTaskPriorityGet(NULL) + 1, &s_usb_tx_task_handle) != pdPASS) {
         ESP_LOGE(TAG, "Cannot create USB send task!");
         eub_abort();
     }
