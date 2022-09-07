@@ -1,17 +1,8 @@
-# Bridge-USB
+# USB-Bridge-WiFi
 
-目前测试下来，串口中继功能可用，但是uf2功能还不能使用
+22711 - 9761 = 13s
 
-```
-I (367) bridge_jtag: JTAG GPIO init done
-W (517) bridge_serial: UART RX break
-I (13997) bridge_msc: LBA 35: UF2 block 0 of 46 for chip ESP32-S2 at 0x001000 with length 452
-E (15897) bridge_msc: ESP LOADER connection failed!
-I (15897) bridge_msc: LBA 35: UF2 block 0 of 46 for chip ESP32-S2 at 0x001000 with length 452
-E (17797) bridge_msc: ESP LOADER connection failed!
-I (17797) bridge_msc: LBA 35: UF2 block 0 of 46 for chip ESP32-S2 at 0x001000 with length 452
 
-```
 The ESP USB Bridge is an [ESP-IDF](https://github.com/espressif/esp-idf) project utilizing an ESP32-S2 (or optionally, an ESP32-S3) chip to create a bridge between a computer (PC) and a target microcontroller (MCU). It can serve as a replacement for USB-to-UART chips (e.g. CP210x).
 
 The concept of ESP USB Bridge is shown in the following figure.
