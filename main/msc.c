@@ -41,7 +41,8 @@
 #include "esp_loader.h"
 #include "serial.h"
 #include "sdkconfig.h"
-
+#include "driver/gpio.h"
+#include "io.h"
 #define FAT_CLUSTERS                    (6 * 1024)
 #define FAT_SECTORS_PER_CLUSTER         8
 #define FAT_SECTORS                     (FAT_CLUSTERS * FAT_SECTORS_PER_CLUSTER)
@@ -319,9 +320,11 @@ static const char *chipid_to_name(const uint32_t id)
         return "unknown";
     }
 }
-
 #define MSC_FLASH_HIGH_BAUDRATE             230400
 #define MSC_FLASH_DEFAULT_BAUDRATE          115200
+
+// #define MSC_FLASH_HIGH_BAUDRATE             460800
+// #define MSC_FLASH_DEFAULT_BAUDRATE          460800
 
 static int msc_last_block_written = -1;
 static int msc_chunk_size;
@@ -334,8 +337,9 @@ static bool msc_change_baudrate(const uint32_t chip_id, const uint32_t baud)
     }
     return (esp_loader_change_baudrate(baud) == ESP_LOADER_SUCCESS) && serial_set_baudrate(baud);
 }
-static uint32_t time_us;
-static uint32_t time_ms;
+// static uint32_t time_us;
+// static uint32_t time_ms;
+static uint8_t msc_flag =0;
 int32_t tud_msc_write10_cb(const uint8_t lun, const uint32_t lba, const uint32_t offset, uint8_t *buffer, const uint32_t bufsize)
 {
     ESP_LOGD(TAG, "tud_msc_write10_cb() invoked, lun=%d, lba=%" PRId32 ", offset=%" PRId32, lun, lba, offset);
@@ -352,16 +356,16 @@ int32_t tud_msc_write10_cb(const uint8_t lun, const uint32_t lba, const uint32_t
 
         if (p->magic0 == UF2_FIRST_MAGIC && p->magic1 == UF2_SECOND_MAGIC && p->magic3 == UF2_FINAL_MAGIC) {
             // UF2 block detected
-            if(time_us==0){
-                time_us = esp_timer_get_time()/1000;
-                ESP_LOGW(TAG, "flags %d, lba %"PRId32",blocks %"PRId32",%"PRId32"ms!", p->flags, lba, p->blocks, time_us);
-            } 
+            // if(time_us==0){
+            //     time_us = esp_timer_get_time()/1000;
+            //     ESP_LOGW(TAG, "flags %d, lba %"PRId32",blocks %"PRId32",%"PRId32"ms!", p->flags, lba, p->blocks, time_us);
+            // } 
             const char *chip_name = (p->flags & UF2_FLAG_FAMILYID_PRESENT) ? chipid_to_name(p->chip_id) : "???";
             if (p->flags & UF2_FLAG_MD5_PRESENT) {
                 // TODO check MD5 optionally based on Kconfig option
             }
 
-            ESP_LOGI(TAG, "LBA %" PRId32 " UF2 block %" PRId32 " of %" PRId32 " , for %s at %#08" PRIx32 ", length%"PRId32, lba, p->block_no, p->blocks,
+            ESP_LOGI(TAG, "LBA %" PRId32 " UF2 block %" PRId32 " of %" PRId32 " , for %s at %#08" PRIx32 ", length %" PRId32, lba, p->block_no, p->blocks,
                      chip_name, p->addr, p->payload_size);
 
             if (msc_last_block_written + 1 != p->block_no) {
@@ -424,11 +428,18 @@ int32_t tud_msc_write10_cb(const uint8_t lun, const uint32_t lba, const uint32_t
                 esp_loader_flash_finish(true);
                 serial_set(true);
                 msc_last_block_written = -1;
-                if(time_us){
-                    time_ms = esp_timer_get_time() - time_us;
-                    time_us = 0;
+                msc_flag ++;
+                if(msc_flag==3){
+                    ESP_LOGW(TAG, "end with baudrate %d", MSC_FLASH_DEFAULT_BAUDRATE);
+                    gpio_set_level(GPIO_RST, 0);
+                    esp_rom_delay_us(100);
+                    gpio_set_level(GPIO_RST, 1);
                 }
-                ESP_LOGW(TAG, "write last block no.%"PRId32"  used %d ms!", p->block_no, time_ms);
+                // if(time_us){
+                //     time_ms = esp_timer_get_time() - time_us;
+                //     time_us = 0;
+                // }
+                // ESP_LOGW(TAG, "write last block no.%"PRId32"  used %d ms!", p->block_no, time_ms);
             }
         }
     }

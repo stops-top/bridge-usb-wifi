@@ -36,7 +36,7 @@
 
 #define SLAVE_UART_NUM          UART_NUM_1
 #define SLAVE_UART_BUF_SIZE     (2 * 1024)
-#define SLAVE_UART_DEFAULT_BAUD 115200
+#define SLAVE_UART_DEFAULT_BAUD 115200  //460800
 
 #define USB_SEND_RINGBUFFER_SIZE SLAVE_UART_BUF_SIZE
 
@@ -240,7 +240,7 @@ void tud_cdc_line_state_cb(const uint8_t itf, const bool dtr, const bool rts)
         // with DTR = 1 & RTS = 1 is received between. This would prevent to put the target chip into download mode.
         ESP_ERROR_CHECK(esp_timer_start_once(state_change_timer, 10 * 1000 /*us*/));
     } else {
-        ESP_LOGI(TAG, "DTR = %d, RTS = %d -> BOOT = %d, RST = %d", dtr, rts, boot, rst);
+        ESP_LOGW(TAG, "DTR = %d, RTS = %d -> BOOT = %d, RST = %d", dtr, rts, boot, rst);
 
         gpio_set_level(GPIO_BOOT, boot);
         gpio_set_level(GPIO_RST, rst);
@@ -310,8 +310,8 @@ void start_serial_task(void *pvParameters)
         if (usb_sendbuf) {
             usb_tx_done = xSemaphoreCreateBinary();
             usb_tx_requested = xSemaphoreCreateBinary();
-            xTaskCreate(usb_sender_task, "usb_sender_task", 4 * 1024, NULL, 5, NULL);
-            xTaskCreate(uart_event_task, "uart_event_task", 8 * 1024, NULL, 5, NULL);
+            xTaskCreate(usb_sender_task, "usb_sender_task", 4 * 1024*2, NULL, 5, NULL);
+            xTaskCreate(uart_event_task, "uart_event_task", 8 * 1024*2, NULL, 5, NULL);
         } else {
             ESP_LOGE(TAG, "Cannot create ringbuffer for USB sender");
             eub_abort();
