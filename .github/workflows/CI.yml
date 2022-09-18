@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - qitas
+    # paths:
+    #   - '**.yml'
+    #   - '**.json'
+    #   - '**.py'
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        targets:
+          - "esp32s2"
+        idf: ["release/v5.0"]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+        - uses: actions/checkout@v2
+          with:
+            submodules: "recursive"
+
+        - name: Setup Python
+          uses: actions/setup-python@v1
+          with:
+            python-version: 3.9
+
+        - name: Install
+          if: matrix.os == 'ubuntu-latest'
+          run: |
+            sudo apt install -y git wget gperf cmake ninja-build ccache dfu-util
+
+        - name: Build
+          run: |
+            git clone -b ${{ matrix.idf }} --recursive https://github.com/espressif/esp-idf.git
+            cd esp-idf
+            ./install.sh ${{ matrix.targets }}
+            . ./export.sh
+            cd ..
+            idf.py set-target ${{ matrix.targets }}
+            idf.py build
+            idf.py uf2
+            cd build
+            esptool.py --chip ${{ matrix.targets }} merge_bin -o bridge-${{ matrix.targets }}.bin @flash_args
+
+        - name: Upload-uf2
+          uses: actions/upload-artifact@v2
+          with:
+            name: uf2-${{ matrix.targets }}
+            path: build/uf2.bin
+
+        - name: Upload-bin
+          uses: actions/upload-artifact@v2
+          with:
+            name: bin-${{ matrix.targets }}
+            path: build/bridge-${{ matrix.targets }}.bin
