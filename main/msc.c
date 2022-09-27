@@ -302,29 +302,27 @@ typedef struct {
 
 #define UF2_ESP8266_ID      0x7eab61ed
 
-static const char *chipid_to_name(const uint32_t id)
-{
-    // IDs can be found at https://github.com/Microsoft/uf2
-    switch (id) {
-    case UF2_ESP8266_ID:
-        return "ESP8266";
-    case 0x1c5f21b0:
-        return "ESP32";
-    case 0xbfdd4eee:
-        return "ESP32-S2";
-    case 0xd42ba06c:
-        return "ESP32-C3";
-    case 0xc47e5767:
-        return "ESP32-S3";
-    default:
-        return "unknown";
-    }
-}
+// static const char *chipid_to_name(const uint32_t id)
+// {
+//     // IDs can be found at https://github.com/Microsoft/uf2
+//     switch (id) {
+//     case UF2_ESP8266_ID:
+//         return "ESP8266";
+//     case 0x1c5f21b0:
+//         return "ESP32";
+//     case 0xbfdd4eee:
+//         return "ESP32-S2";
+//     case 0xd42ba06c:
+//         return "ESP32-C3";
+//     case 0xc47e5767:
+//         return "ESP32-S3";
+//     default:
+//         return "unknown";
+//     }
+// }
 #define MSC_FLASH_HIGH_BAUDRATE             230400
 #define MSC_FLASH_DEFAULT_BAUDRATE          115200
 
-// #define MSC_FLASH_HIGH_BAUDRATE             460800
-// #define MSC_FLASH_DEFAULT_BAUDRATE          460800
 
 static int msc_last_block_written = -1;
 static int msc_chunk_size;
@@ -337,9 +335,6 @@ static bool msc_change_baudrate(const uint32_t chip_id, const uint32_t baud)
     }
     return (esp_loader_change_baudrate(baud) == ESP_LOADER_SUCCESS) && serial_set_baudrate(baud);
 }
-// static uint32_t time_us;
-// static uint32_t time_ms;
-static uint8_t msc_flag =0;
 int32_t tud_msc_write10_cb(const uint8_t lun, const uint32_t lba, const uint32_t offset, uint8_t *buffer, const uint32_t bufsize)
 {
     ESP_LOGD(TAG, "tud_msc_write10_cb() invoked, lun=%d, lba=%" PRId32 ", offset=%" PRId32, lun, lba, offset);
@@ -360,13 +355,13 @@ int32_t tud_msc_write10_cb(const uint8_t lun, const uint32_t lba, const uint32_t
             //     time_us = esp_timer_get_time()/1000;
             //     ESP_LOGW(TAG, "flags %d, lba %"PRId32",blocks %"PRId32",%"PRId32"ms!", p->flags, lba, p->blocks, time_us);
             // } 
-            const char *chip_name = (p->flags & UF2_FLAG_FAMILYID_PRESENT) ? chipid_to_name(p->chip_id) : "???";
+            // const char *chip_name = (p->flags & UF2_FLAG_FAMILYID_PRESENT) ? chipid_to_name(p->chip_id) : "???";
             if (p->flags & UF2_FLAG_MD5_PRESENT) {
                 // TODO check MD5 optionally based on Kconfig option
             }
 
-            ESP_LOGI(TAG, "LBA %" PRId32 " UF2 block %" PRId32 " of %" PRId32 " , for %s at %#08" PRIx32 ", length %" PRId32, lba, p->block_no, p->blocks,
-                     chip_name, p->addr, p->payload_size);
+            // ESP_LOGI(TAG, "LBA %" PRId32 " UF2 block %" PRId32 " of %" PRId32 " , for %s at %#08" PRIx32 ", length %" PRId32, lba, p->block_no, p->blocks,
+            //          chip_name, p->addr, p->payload_size);
 
             if (msc_last_block_written + 1 != p->block_no) {
                 ESP_LOGE(TAG, "Trying to write block no. %" PRId32 " but last time %d was written!", p->block_no,
@@ -398,8 +393,6 @@ int32_t tud_msc_write10_cb(const uint8_t lun, const uint32_t lba, const uint32_t
                 }
                 ESP_LOGD(TAG, "ESP LOADER flash start success!");
             }
-
-
             if (p->payload_size > msc_chunk_size) {
                 ESP_LOGE(TAG, "UF2 block %" PRId32 " is of size %" PRId32 " and should be at most %d", p->block_no, p->payload_size,
                          msc_chunk_size);
@@ -428,18 +421,7 @@ int32_t tud_msc_write10_cb(const uint8_t lun, const uint32_t lba, const uint32_t
                 esp_loader_flash_finish(true);
                 serial_set(true);
                 msc_last_block_written = -1;
-                msc_flag ++;
-                if(msc_flag==3){
-                    ESP_LOGW(TAG, "end with baudrate %d", MSC_FLASH_DEFAULT_BAUDRATE);
-                    gpio_set_level(GPIO_RST, 0);
-                    esp_rom_delay_us(100);
-                    gpio_set_level(GPIO_RST, 1);
-                }
-                // if(time_us){
-                //     time_ms = esp_timer_get_time() - time_us;
-                //     time_us = 0;
-                // }
-                // ESP_LOGW(TAG, "write last block no.%"PRId32"  used %d ms!", p->block_no, time_ms);
+                ESP_LOGI(TAG, "write last block no.%d", p->block_no);
             }
         }
     }

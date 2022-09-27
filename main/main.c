@@ -27,6 +27,7 @@
 #include "sdkconfig.h"
 #include "esp_idf_version.h"
 #include "esp_system.h"
+#include "esp_timer.h"
 
 #if CONFIG_IDF_TARGET_ESP32
 #include "esp32/rom/gpio.h"
@@ -241,6 +242,12 @@ static void init_led_gpios(void)
     ESP_LOGI(TAG, "LED GPIO init done");
 }
 
+static void periodic_timer_callback(void* arg)
+{
+    int32_t time_since_boot = esp_timer_get_time()/1000000;
+    ESP_LOGI("Periodic timer", "since boot %ds", time_since_boot);
+}
+
 void app_main(void)
 {
     init_led_gpios(); // Keep this at the begining. LEDs are used for error reporting.
@@ -258,6 +265,13 @@ void app_main(void)
 
     tusb_init();
 
+    const esp_timer_create_args_t periodic_timer_args = {
+            .callback = &periodic_timer_callback,
+            .name = "periodic"
+    };
+    esp_timer_handle_t periodic_timer;
+    ESP_ERROR_CHECK(esp_timer_create(&periodic_timer_args, &periodic_timer));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(periodic_timer, 5*1000*1000));
     xTaskCreate(tusb_device_task, "tusb_device_task", 4 * 1024, NULL, 5, NULL);
     xTaskCreate(msc_task, "msc_task", 4 * 1024, NULL, 5, NULL);
     xTaskCreate(start_serial_task, "start_serial_task", 4 * 1024, NULL, 5, NULL);

@@ -46,13 +46,13 @@ jobs:
             idf.py build
             idf.py uf2
             cd build
-            esptool.py --chip ${{ matrix.targets }} merge_bin -o bridge-${{ matrix.targets }}-${{ matrix.esp-idf }}.bin @flash_args
+            esptool.py --chip ${{ matrix.targets }} merge_bin -o bridge-${{ matrix.targets }}-${{ matrix.idf }}.bin @flash_args
             mkdir output
-            mv bridge-${{ matrix.targets }}-${{ matrix.esp-idf }}.bin  output/
+            mv bridge-${{ matrix.targets }}-${{ matrix.idf }}.bin  output/
             mv uf2.bin  output/
 
         - name: Upload
           uses: actions/upload-artifact@v2
           with:
-            name: ${{ matrix.targets }}-${{ matrix.examples }}-${{ matrix.esp-idf }}
+            name: ${{ matrix.targets }}-${{ matrix.idf }}
             path: build/output
