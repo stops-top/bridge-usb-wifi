@@ -1,10 +1,11 @@
 # USB-Bridge-WiFi
 
-[![Build Status](https://github.com/stops-top/usb-bridge-esp32s2/workflows/CI/badge.svg)](https://github.com/stops-top/usb-bridge-esp32s2/actions/workflows/CI.yml)
+[![Build Status](https://github.com/stops-top/usb-bridge-esp32s2/workflows/ci/badge.svg)](https://github.com/stops-top/usb-bridge-esp32s2/actions/workflows/ci.yml)
 
 
 在原工程的基础上，添加设备管理功能，主要是识别到具体的ESP32芯片型号，然后管理相应芯片，在烧录过程中识别对象并选择
 
+目前还没有完全适配v5.0版本
 
 
 The ESP USB Bridge is an [ESP-IDF](https://github.com/espressif/esp-idf) project utilizing an ESP32-S2 (or optionally, an ESP32-S3) chip to create a bridge between a computer (PC) and a target microcontroller (MCU). It can serve as a replacement for USB-to-UART chips (e.g. CP210x).

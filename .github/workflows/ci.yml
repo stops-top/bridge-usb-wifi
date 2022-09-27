@@ -1,4 +1,4 @@
-name: CI
+name: ci
 
 on:
   push:
@@ -16,7 +16,8 @@ jobs:
       matrix:
         targets:
           - "esp32s2"
-        idf: ["release/v5.0"]
+          - "esp32s3"
+        idf: ["v4.4.2"] 
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -45,16 +46,13 @@ jobs:
             idf.py build
             idf.py uf2
             cd build
-            esptool.py --chip ${{ matrix.targets }} merge_bin -o bridge-${{ matrix.targets }}.bin @flash_args
+            esptool.py --chip ${{ matrix.targets }} merge_bin -o bridge-${{ matrix.targets }}-${{ matrix.esp-idf }}.bin @flash_args
+            mkdir output
+            mv bridge-${{ matrix.targets }}-${{ matrix.esp-idf }}.bin  output/
+            mv uf2.bin  output/
 
-        - name: Upload-uf2
+        - name: Upload
           uses: actions/upload-artifact@v2
           with:
-            name: uf2-${{ matrix.targets }}
-            path: build/uf2.bin
-
-        - name: Upload-bin
-          uses: actions/upload-artifact@v2
-          with:
-            name: bin-${{ matrix.targets }}
-            path: build/bridge-${{ matrix.targets }}.bin
+            name: ${{ matrix.targets }}-${{ matrix.examples }}-${{ matrix.esp-idf }}
+            path: build/output
