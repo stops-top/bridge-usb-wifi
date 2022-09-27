@@ -264,6 +264,9 @@ void app_main(void)
     configure_pins(&hal);
 
     tusb_init();
+    msc_init();
+    serial_init();
+    jtag_init();
 
     const esp_timer_create_args_t periodic_timer_args = {
             .callback = &periodic_timer_callback,
@@ -273,7 +276,4 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_timer_create(&periodic_timer_args, &periodic_timer));
     ESP_ERROR_CHECK(esp_timer_start_periodic(periodic_timer, 5*1000*1000));
     xTaskCreate(tusb_device_task, "tusb_device_task", 4 * 1024, NULL, 5, NULL);
-    xTaskCreate(msc_task, "msc_task", 4 * 1024, NULL, 5, NULL);
-    xTaskCreate(start_serial_task, "start_serial_task", 4 * 1024, NULL, 5, NULL);
-    xTaskCreate(jtag_task, "jtag_task", 4 * 1024, NULL, 5, NULL);
 }
