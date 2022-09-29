@@ -224,24 +224,6 @@ static void tusb_device_task(void *pvParameters)
     vTaskDelete(NULL);
 }
 
-static void init_led_gpios(void)
-{
-    // gpio_config_t io_conf = {};
-    // io_conf.intr_type = GPIO_PIN_INTR_DISABLE;
-    // io_conf.mode = GPIO_MODE_OUTPUT;
-    // io_conf.pin_bit_mask = (1ULL << CONFIG_BRIDGE_GPIO_LED1) | (1ULL << CONFIG_BRIDGE_GPIO_LED2) |
-    //                        (1ULL << CONFIG_BRIDGE_GPIO_LED3);
-    // io_conf.pull_down_en = 0;
-    // io_conf.pull_up_en = 0;
-    // ESP_ERROR_CHECK(gpio_config(&io_conf));
-
-    // gpio_set_level(CONFIG_BRIDGE_GPIO_LED1, !CONFIG_BRIDGE_GPIO_LED1_ACTIVE);
-    // gpio_set_level(CONFIG_BRIDGE_GPIO_LED2, !CONFIG_BRIDGE_GPIO_LED2_ACTIVE);
-    // gpio_set_level(CONFIG_BRIDGE_GPIO_LED3, !CONFIG_BRIDGE_GPIO_LED3_ACTIVE);
-
-    ESP_LOGI(TAG, "LED GPIO init done");
-}
-
 static void periodic_timer_callback(void* arg)
 {
     int32_t time_since_boot = esp_timer_get_time()/1000000;
@@ -250,10 +232,7 @@ static void periodic_timer_callback(void* arg)
 
 void app_main(void)
 {
-    init_led_gpios(); // Keep this at the begining. LEDs are used for error reporting.
-
     init_serial_no();
-
     periph_module_reset(PERIPH_USB_MODULE);
     periph_module_enable(PERIPH_USB_MODULE);
 
