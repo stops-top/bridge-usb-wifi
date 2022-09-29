@@ -34,9 +34,9 @@
 #include "io.h"
 #include "jtag.h"
 
-#define SLAVE_UART_NUM          UART_NUM_1
-#define SLAVE_UART_BUF_SIZE     (2 * 1024)
-#define SLAVE_UART_DEFAULT_BAUD 115200  //460800
+#define SLAVE_UART_NUM              UART_NUM_1
+#define SLAVE_UART_BUF_SIZE         (2 * 1024)
+#define SLAVE_UART_DEFAULT_BAUD     115200      //460800
 
 #define USB_SEND_RINGBUFFER_SIZE SLAVE_UART_BUF_SIZE
 
@@ -57,9 +57,9 @@ static void uart_event_task(void *pvParameters)
     uint8_t dtmp[SLAVE_UART_BUF_SIZE];
 
     while (1) {
-        gpio_set_level(LED_TX, LED_TX_OFF);
+        // gpio_set_level(LED_TX, LED_TX_OFF);
         if (xQueueReceive(uart_queue, (void *) &event, portMAX_DELAY)) {
-            gpio_set_level(LED_TX, LED_TX_ON);
+            // gpio_set_level(LED_TX, LED_TX_ON);
             switch (event.type) {
             case UART_DATA:
                 if (serial_read_enabled) {
@@ -173,7 +173,7 @@ void tud_cdc_rx_cb(const uint8_t itf)
 
     const uint32_t rx_size = tud_cdc_n_read(itf, buf, CONFIG_USB_CDC_RX_BUFSIZE);
     if (rx_size > 0) {
-        gpio_set_level(LED_RX, LED_RX_ON);
+        // gpio_set_level(LED_RX, LED_RX_ON);
         ESP_LOGD(TAG, "CDC -> UART (%" PRId32 " bytes)", rx_size);
         ESP_LOG_BUFFER_HEXDUMP("CDC -> UART", buf, rx_size, ESP_LOG_DEBUG);
 
@@ -184,7 +184,7 @@ void tud_cdc_rx_cb(const uint8_t itf)
     } else {
         ESP_LOGW(TAG, "tud_cdc_rx_cb receive error");
     }
-    gpio_set_level(LED_RX, LED_RX_OFF);
+    // gpio_set_level(LED_RX, LED_RX_OFF);
 }
 
 void tud_cdc_line_coding_cb(const uint8_t itf, cdc_line_coding_t const *p_line_coding)
