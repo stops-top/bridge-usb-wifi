@@ -14,8 +14,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        targets:
-          - "esp32s3"
         idf: ["v4.4.2"] 
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -30,7 +28,6 @@ jobs:
             python-version: 3.9
 
         - name: Install
-          if: matrix.os == 'ubuntu-latest'
           run: |
             sudo apt install -y git wget gperf cmake ninja-build ccache dfu-util
 
@@ -38,20 +35,19 @@ jobs:
           run: |
             git clone -b ${{ matrix.idf }} --recursive https://github.com/espressif/esp-idf.git
             cd esp-idf
-            ./install.sh ${{ matrix.targets }}
+            ./install.sh esp32s3
             . ./export.sh
             cd ..
-            idf.py set-target ${{ matrix.targets }}
             idf.py build
             idf.py uf2
             cd build
-            esptool.py --chip ${{ matrix.targets }} merge_bin -o bridge-${{ matrix.targets }}-${{ matrix.idf }}.bin @flash_args
+            esptool.py --chip esp32s3 merge_bin -o box-bridge-${{ matrix.idf }}.bin @flash_args
             mkdir output
-            mv bridge-${{ matrix.targets }}-${{ matrix.idf }}.bin  output/
+            mv box-bridge-${{ matrix.idf }}.bin  output/
             mv uf2.bin  output/
 
         - name: Upload
           uses: actions/upload-artifact@v2
           with:
-            name: ${{ matrix.targets }}-${{ matrix.idf }}
+            name: box-bridge-${{ matrix.idf }}
             path: build/output
