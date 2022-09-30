@@ -34,7 +34,7 @@
 #include "io.h"
 #include "jtag.h"
 
-#define SLAVE_UART_NUM              UART_NUM_1
+// #define SLAVE_UART_1                UART_NUM_1
 #define SLAVE_UART_BUF_SIZE         (2 * 1024)
 #define SLAVE_UART_DEFAULT_BAUD     115200      //460800
 
@@ -49,9 +49,10 @@ static SemaphoreHandle_t usb_tx_done = NULL;
 
 static esp_timer_handle_t state_change_timer;
 
-static atomic_bool serial_read_enabled = false;
+static atomic_bool serial1_read_enabled = false;
+static atomic_bool serial2_read_enabled = false;
 
-static void uart_event_task(void *pvParameters)
+static void uart1_event_task(void *pvParameters)
 {
     uart_event_t event;
     uint8_t dtmp[SLAVE_UART_BUF_SIZE];
@@ -62,10 +63,10 @@ static void uart_event_task(void *pvParameters)
             // gpio_set_level(LED_TX, LED_TX_ON);
             switch (event.type) {
             case UART_DATA:
-                if (serial_read_enabled) {
+                if (serial1_read_enabled) {
                     size_t buffered_len;
-                    uart_get_buffered_data_len(SLAVE_UART_NUM, &buffered_len);
-                    const int read = uart_read_bytes(SLAVE_UART_NUM, dtmp, MIN(buffered_len, SLAVE_UART_BUF_SIZE), portMAX_DELAY);
+                    uart_get_buffered_data_len(UART_NUM_1, &buffered_len);
+                    const int read = uart_read_bytes(UART_NUM_1, dtmp, MIN(buffered_len, SLAVE_UART_BUF_SIZE), portMAX_DELAY);
                     ESP_LOGD(TAG, "UART -> CDC ringbuffer (%d bytes)", read);
                     ESP_LOG_BUFFER_HEXDUMP("UART -> CDC", dtmp, read, ESP_LOG_DEBUG);
 
@@ -81,12 +82,68 @@ static void uart_event_task(void *pvParameters)
                 break;
             case UART_FIFO_OVF:
                 ESP_LOGW(TAG, "UART FIFO overflow");
-                uart_flush_input(SLAVE_UART_NUM);
+                uart_flush_input(UART_NUM_1);
                 xQueueReset(uart_queue);
                 break;
             case UART_BUFFER_FULL:
                 ESP_LOGW(TAG, "UART ring buffer full");
-                uart_flush_input(SLAVE_UART_NUM);
+                uart_flush_input(UART_NUM_1);
+                xQueueReset(uart_queue);
+                break;
+            case UART_BREAK:
+                ESP_LOGW(TAG, "UART RX break");
+                break;
+            case UART_PARITY_ERR:
+                ESP_LOGW(TAG, "UART parity error");
+                break;
+            case UART_FRAME_ERR:
+                ESP_LOGW(TAG, "UART frame error");
+                break;
+            default:
+                ESP_LOGW(TAG, "UART event type: %d", event.type);
+                break;
+            }
+            taskYIELD();
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    vTaskDelete(NULL);
+}
+
+static void uart2_event_task(void *pvParameters)
+{
+    uart_event_t event;
+    uint8_t dtmp[SLAVE_UART_BUF_SIZE];
+
+    while (1) {
+        if (xQueueReceive(uart_queue, (void *) &event, portMAX_DELAY)) {
+            switch (event.type) {
+            case UART_DATA:
+                if (serial1_read_enabled) {
+                    size_t buffered_len;
+                    uart_get_buffered_data_len(UART_NUM_2, &buffered_len);
+                    const int read = uart_read_bytes(UART_NUM_2, dtmp, MIN(buffered_len, SLAVE_UART_BUF_SIZE), portMAX_DELAY);
+                    ESP_LOGD(TAG, "UART -> CDC ringbuffer (%d bytes)", read);
+                    ESP_LOG_BUFFER_HEXDUMP("UART -> CDC", dtmp, read, ESP_LOG_DEBUG);
+
+                    // We cannot wait it here because UART events would overflow and have to copy the data into
+                    // another buffer and wait until it can be sent.
+                    if (xRingbufferSend(usb_sendbuf, dtmp, read, pdMS_TO_TICKS(10)) != pdTRUE) {
+                        ESP_LOGV(TAG, "Cannot write to ringbuffer (free %d of %d)!",
+                                 xRingbufferGetCurFreeSize(usb_sendbuf),
+                                 USB_SEND_RINGBUFFER_SIZE);
+                        vTaskDelay(pdMS_TO_TICKS(10));
+                    }
+                }
+                break;
+            case UART_FIFO_OVF:
+                ESP_LOGW(TAG, "UART FIFO overflow");
+                uart_flush_input(UART_NUM_2);
+                xQueueReset(uart_queue);
+                break;
+            case UART_BUFFER_FULL:
+                ESP_LOGW(TAG, "UART ring buffer full");
+                uart_flush_input(UART_NUM_2);
                 xQueueReset(uart_queue);
                 break;
             case UART_BREAK:
@@ -177,7 +234,7 @@ void tud_cdc_rx_cb(const uint8_t itf)
         ESP_LOGD(TAG, "CDC -> UART (%" PRId32 " bytes)", rx_size);
         ESP_LOG_BUFFER_HEXDUMP("CDC -> UART", buf, rx_size, ESP_LOG_DEBUG);
 
-        const int transferred = uart_write_bytes(SLAVE_UART_NUM, buf, rx_size);
+        const int transferred = uart_write_bytes(UART_NUM_1, buf, rx_size);
         if (transferred != rx_size) {
             ESP_LOGW(TAG, "uart_write_bytes transferred %d bytes only!", transferred);
         }
@@ -224,8 +281,8 @@ void tud_cdc_line_state_cb(const uint8_t itf, const bool dtr, const bool rts)
     } else {
         ESP_LOGW(TAG, "DTR = %d, RTS = %d -> BOOT = %d, RST = %d", dtr, rts, boot, rst);
 
-        gpio_set_level(GPIO_BOOT, boot);
-        gpio_set_level(GPIO_RST, rst);
+        gpio_set_level(MOD_BOOT1, boot);
+        gpio_set_level(MOD_RST1, rst);
 
         serial_set_baudrate(SLAVE_UART_DEFAULT_BAUD);
 
@@ -236,7 +293,7 @@ void tud_cdc_line_state_cb(const uint8_t itf, const bool dtr, const bool rts)
         if (jtag_get_target_model() == CHIP_ESP32 && !tdi_bootstrapping && boot && !rst) {
             jtag_task_suspend();
             tdi_bootstrapping = true;
-            gpio_set_level(CONFIG_BRIDGE_GPIO_TDO, 0);
+            gpio_set_level(CONFIG_BRIDGE_MOD_TDO, 0);
             ESP_LOGW(TAG, "jtag task suspended");
         }
         if (tdi_bootstrapping && boot && rst) {
@@ -251,8 +308,8 @@ void tud_cdc_line_state_cb(const uint8_t itf, const bool dtr, const bool rts)
 static void state_change_timer_cb(void *arg)
 {
     ESP_LOGI(TAG, "BOOT = 1, RST = 1");
-    gpio_set_level(GPIO_BOOT, true);
-    gpio_set_level(GPIO_RST, true);
+    gpio_set_level(MOD_BOOT1, true);
+    gpio_set_level(MOD_RST1, true);
 }
 
 static void init_state_change_timer(void)
@@ -264,53 +321,101 @@ static void init_state_change_timer(void)
     ESP_ERROR_CHECK(esp_timer_create(&timer_args, &state_change_timer));
 }
 
-void serial_init(void)
+void serial1_init(void)
 {
-    const loader_esp32_config_t serial_conf = {
+    const loader_esp32_config_t serial1_conf = {
         .baud_rate = SLAVE_UART_DEFAULT_BAUD,
-        .uart_port = SLAVE_UART_NUM,
-        .uart_rx_pin = GPIO_RXD,
-        .uart_tx_pin = GPIO_TXD,
+        .uart_port = UART_NUM_1,
+        .uart_rx_pin = MOD_RX1,
+        .uart_tx_pin = MOD_TX1,
         .rx_buffer_size = SLAVE_UART_BUF_SIZE * 2,
         .tx_buffer_size = 0,
         .uart_queue = &uart_queue,
         .queue_size = 20,
-        .reset_trigger_pin = GPIO_RST,
-        .gpio0_trigger_pin = GPIO_BOOT,
+        .reset_trigger_pin = MOD_RST1,
+        .gpio0_trigger_pin = MOD_BOOT1,
     };
+    if (loader_port_esp32_init(&serial1_conf) == ESP_LOADER_SUCCESS) {
+        ESP_LOGI(TAG, "UART1 have been initialized");
 
-    if (loader_port_esp32_init(&serial_conf) == ESP_LOADER_SUCCESS) {
-        ESP_LOGI(TAG, "UART & GPIO have been initialized");
-
-        gpio_set_level(GPIO_RST, 1);
-        gpio_set_level(GPIO_BOOT, 1);
-
-        init_state_change_timer();
-
-        usb_sendbuf = xRingbufferCreate(USB_SEND_RINGBUFFER_SIZE, RINGBUF_TYPE_BYTEBUF);
-
-        if (usb_sendbuf) {
-            usb_tx_done = xSemaphoreCreateBinary();
-            usb_tx_requested = xSemaphoreCreateBinary();
-            xTaskCreate(usb_sender_task, "usb_sender_task", 4 * 1024*2, NULL, 5, NULL);
-            xTaskCreate(uart_event_task, "uart_event_task", 8 * 1024*2, NULL, 5, NULL);
-        } else {
-            ESP_LOGE(TAG, "Cannot create ringbuffer for USB sender");
-            eub_abort();
-        }
-        serial_read_enabled = true;
-    } else {
-        ESP_LOGE(TAG, "loader_port_serial_init failed");
+        gpio_set_level(MOD_RST1, 1);
+        gpio_set_level(MOD_BOOT1, 1);
+        
+        // usb_sendbuf = xRingbufferCreate(USB_SEND_RINGBUFFER_SIZE, RINGBUF_TYPE_BYTEBUF);
+        // if (usb_sendbuf) {
+        //     usb_tx_done = xSemaphoreCreateBinary();
+        //     usb_tx_requested = xSemaphoreCreateBinary();
+        //     xTaskCreate(usb_sender_task, "usb_sender_task", 4 * 1024*2, NULL, 5, NULL);
+        //     xTaskCreate(uart1_event_task, "uart1_event_task", 8 * 1024*2, NULL, 5, NULL);
+        //     // xTaskCreate(uart2_event_task, "uart2_event_task", 8 * 1024*2, NULL, 5, NULL);
+        // } else {
+        //     ESP_LOGE(TAG, "Cannot create ringbuffer for USB sender");
+        //     eub_abort();
+        // }
+        serial1_read_enabled = true;
+    }else{
+        ESP_LOGE(TAG, "loader_port_serial1_init failed");
         eub_abort();
     }
 }
 
+void serial2_init(void)
+{
+    const loader_esp32_config_t serial2_conf = {
+        .baud_rate = SLAVE_UART_DEFAULT_BAUD,
+        .uart_port = UART_NUM_2,
+        .uart_rx_pin = MOD_RX2,
+        .uart_tx_pin = MOD_TX2,
+        .rx_buffer_size = SLAVE_UART_BUF_SIZE * 2,
+        .tx_buffer_size = 0,
+        .uart_queue = &uart_queue,
+        .queue_size = 20,
+        .reset_trigger_pin = MOD_RST2,
+        .gpio0_trigger_pin = MOD_BOOT2,
+    };
+
+    if (loader_port_esp32_init(&serial2_conf) == ESP_LOADER_SUCCESS) {
+        ESP_LOGI(TAG, "UART2 have been initialized");
+
+        gpio_set_level(MOD_RST2, 1);
+        gpio_set_level(MOD_BOOT2, 1);
+        // init_state_change_timer();
+
+        serial2_read_enabled = true;
+    }else{
+        ESP_LOGE(TAG, "loader_port_serial2_init failed");
+        eub_abort();
+    }
+}
+
+
 void serial_set(const bool enable)
 {
-    serial_read_enabled = enable;
+    serial1_read_enabled = enable;
 }
 
 bool serial_set_baudrate(const int baud)
 {
-    return uart_set_baudrate(SLAVE_UART_NUM, baud) == ESP_OK;
+    return uart_set_baudrate(UART_NUM_1, baud) == ESP_OK;
+}
+
+
+void serial_init(void)
+{
+    serial1_init();
+    // serial2_init();
+    if(serial1_read_enabled){
+        init_state_change_timer();
+        usb_sendbuf = xRingbufferCreate(USB_SEND_RINGBUFFER_SIZE, RINGBUF_TYPE_BYTEBUF);
+        if (usb_sendbuf) {
+            usb_tx_done = xSemaphoreCreateBinary();
+            usb_tx_requested = xSemaphoreCreateBinary();
+            xTaskCreate(usb_sender_task, "usb_sender_task", 4 * 1024*2, NULL, 5, NULL);
+            xTaskCreate(uart1_event_task, "uart1_event_task", 8 * 1024*2, NULL, 5, NULL);
+            // xTaskCreate(uart2_event_task, "uart2_event_task", 8 * 1024*2, NULL, 5, NULL);
+        } else {
+            ESP_LOGE(TAG, "Cannot create ringbuffer for USB sender");
+            eub_abort();
+        }
+    }
 }

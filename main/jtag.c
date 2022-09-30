@@ -312,9 +312,9 @@ static void jtag_task(void *pvParameters)
                 break;
             case CMD_SRST1:         // FIXME: system reset may cause an issue during openocd examination
                 cmd_rpt_cnt = 8;    // for now this is also used for the tap reset
-                // gpio_set_level(GPIO_RST, 0);
+                // gpio_set_level(MOD_RST1, 0);
                 // ets_delay_us(100);
-                // gpio_set_level(GPIO_RST, 1);
+                // gpio_set_level(MOD_RST1, 1);
                 break;
             default:
                 rep_cnt = 0;

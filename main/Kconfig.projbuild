@@ -1,60 +1,68 @@
 menu "Box Configuration"
 
-    config BRIDGE_GPIO_RST
-        int "GPIO pin for RST signal"
-        default 41
-
-    config BRIDGE_GPIO_EN1
-        int "GPIO pin for EN1 signal"
-        default 40
-
-    config BRIDGE_GPIO_RX1
-        int "GPIO pin for Rx1 signal"
+    config BRIDGE_MOD_BOOT1
+        int "MOD GPIO pin BOOT1"
         default 38
 
-    config BRIDGE_GPIO_TX1
-        int "GPIO pin for Tx1 signal"
+    config BRIDGE_MOD_RST1
+        int "MOD GPIO pin RST1"
         default 39
 
-    config BRIDGE_GPIO_EN2
-        int "GPIO pin for EN2 signal"
-        default 14
+    config BRIDGE_MOD_RX1
+        int "GPIO pin for Rx1 signal"
+        default 40
 
-    config BRIDGE_GPIO_RX2
-        int "GPIO pin for Rx2 signal"
-        default 42
+    config BRIDGE_MOD_TX1
+        int "GPIO pin for Tx1 signal"
+        default 41
 
-    config BRIDGE_GPIO_TX2
-        int "GPIO pin for Tx2 signal"
-        default 21
-
-    config BRIDGE_GPIO_TDI
-        int "GPIO pin for TDI signal"
+    config BRIDGE_MOD_BOOT2
+        int "MOD GPIO pin BOOT2"
         default 10
 
-    config BRIDGE_GPIO_TDO
-        int "GPIO pin for TDO signal"
+    config BRIDGE_MOD_RST2
+        int "MOD GPIO pin RST2"
         default 11
 
-    config BRIDGE_GPIO_TCK
-        int "GPIO pin for TCK signal"
+    config BRIDGE_MOD_RX2
+        int "GPIO pin for Rx2 signal"
         default 13
 
-    config BRIDGE_GPIO_TMS
-        int "GPIO pin for TMS signal"
+    config BRIDGE_MOD_TX2
+        int "GPIO pin for Tx2 signal"
+        default 12
+
+    config BRIDGE_MOD_TDI
+        int "MOD GPIO pin TDI"
         default 9
 
-    config BRIDGE_SDMMC_CLK
-        int "SDMMC CLK pin"
-        default 44
+    config BRIDGE_MOD_TDO
+        int "MOD GPIO pin TDO"
+        default 14
 
-    config BRIDGE_SDMMC_CMD
-        int "SDMMC CMD pin"
-        default 43
+    config BRIDGE_MOD_TCK
+        int "MOD GPIO pin TCK"
+        default 42
+        
+    config BRIDGE_MOD_TMS
+        int "MOD GPIO pin TMS"
+        default 21
+
+    config BRIDGE_SDMMC_D1
+        int "SDMMC DAT pin"
+        default 9
 
     config BRIDGE_SDMMC_D0
         int "SDMMC DAT pin"
-        default 12
+        default 14
+
+    config BRIDGE_SDMMC_CMD
+        int "SDMMC CMD pin"
+        default 42
+
+    config BRIDGE_SDMMC_CLK
+        int "SDMMC CLK pin"
+        default 21
 
     config BRIDGE_USB_VID
         hex "USB vendor ID"
