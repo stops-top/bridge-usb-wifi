@@ -130,7 +130,7 @@ bool tud_vendor_control_xfer_cb(const uint8_t rhport, const uint8_t stage, tusb_
             // TODO: process the commands
             break;
         case VEND_JTAG_GETTDO: {
-            uint8_t buf = gpio_get_level(GPIO_TDI);
+            uint8_t buf = gpio_get_level(PMOD_TDI);
             return tud_control_xfer(rhport, request, (void *)&buf, 1);
         }
         break;
@@ -149,20 +149,20 @@ static void init_jtag_gpio(void)
 {
     gpio_config_t io_conf = {
         .mode = GPIO_MODE_OUTPUT,
-        .pin_bit_mask = (1ULL << GPIO_TDI) | (1ULL << GPIO_TCK) | (1ULL << GPIO_TMS),
+        .pin_bit_mask = (1ULL << PMOD_TDI) | (1ULL << PMOD_TCK) | (1ULL << PMOD_TMS),
         .pull_down_en = 0,
         .pull_up_en = 0,
     };
     ESP_ERROR_CHECK(gpio_config(&io_conf));
 
     io_conf.mode = GPIO_MODE_INPUT;
-    io_conf.pin_bit_mask = (1ULL << GPIO_TDO);
+    io_conf.pin_bit_mask = (1ULL << PMOD_TDO);
     ESP_ERROR_CHECK(gpio_config(&io_conf));
 
     ESP_LOGI(TAG, "JTAG GPIO init done");
 
-    gpio_set_level(GPIO_TMS, 1);
-    gpio_set_level(GPIO_TCK, 0);
+    gpio_set_level(PMOD_TMS, 1);
+    gpio_set_level(PMOD_TCK, 0);
 }
 
 static void usb_send_task(void *pvParameters)
@@ -216,17 +216,17 @@ static int usb_send(const uint8_t *buf, const int size)
 
 inline static void do_jtag_one(const uint8_t tdo_req, const uint8_t tms, const uint8_t tdi)
 {
-    gpio_ll_set_level(s_gpio_dev, GPIO_TDI, tdi);
-    gpio_ll_set_level(s_gpio_dev, GPIO_TMS, tms);
+    gpio_ll_set_level(s_gpio_dev, PMOD_TDI, tdi);
+    gpio_ll_set_level(s_gpio_dev, PMOD_TMS, tms);
 
-    gpio_ll_set_level(s_gpio_dev, GPIO_TCK, 1);
+    gpio_ll_set_level(s_gpio_dev, PMOD_TCK, 1);
 
     if (tdo_req) {
-        s_tdo_bytes[s_total_tdo_bits / 8] |= (gpio_ll_get_level(s_gpio_dev, GPIO_TDO) << (s_total_tdo_bits % 8));
+        s_tdo_bytes[s_total_tdo_bits / 8] |= (gpio_ll_get_level(s_gpio_dev, PMOD_TDO) << (s_total_tdo_bits % 8));
         s_total_tdo_bits++;
     }
 
-    gpio_ll_set_level(s_gpio_dev, GPIO_TCK, 0);
+    gpio_ll_set_level(s_gpio_dev, PMOD_TCK, 0);
 }
 
 int jtag_get_proto_caps(uint16_t *dest)

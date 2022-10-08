@@ -230,7 +230,7 @@ static void periodic_timer_callback(void* arg)
     ESP_LOGI("Periodic timer", "since boot %ds", time_since_boot);
 }
 
-void app_main(void)
+void esp_mod_init(void)
 {
     init_serial_no();
     periph_module_reset(PERIPH_USB_MODULE);
@@ -255,4 +255,9 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_timer_create(&periodic_timer_args, &periodic_timer));
     ESP_ERROR_CHECK(esp_timer_start_periodic(periodic_timer, 5*1000*1000));
     xTaskCreate(tusb_device_task, "tusb_device_task", 4 * 1024, NULL, 5, NULL);
+}
+
+void app_main(void)
+{
+    esp_mod_init();
 }

@@ -48,12 +48,12 @@ menu "Box Configuration"
         int "MOD GPIO pin TMS"
         default 21
 
-    config BRIDGE_SDMMC_D1
-        int "SDMMC DAT pin"
+    config BRIDGE_SDMMC_SD1
+        int "SDMMC DAT1 pin"
         default 9
 
-    config BRIDGE_SDMMC_D0
-        int "SDMMC DAT pin"
+    config BRIDGE_SDMMC_SD0
+        int "SDMMC DAT0 pin"
         default 14
 
     config BRIDGE_SDMMC_CMD
